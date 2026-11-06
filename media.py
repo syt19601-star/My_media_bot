@@ -27,7 +27,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "💬 للدعم الفني أو إذا واجهتك أي مشكلة، تواصل مع المطور مباشرة هنا:\n"
         "👉 @ulx717"
     )
-    
+
 async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
     if not url.startswith(("http://", "https://")):
@@ -63,6 +63,7 @@ async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
             os.remove('downloaded_video.mp4')
 
 def main():
+    # تشغيل خادم الويب
     server_thread = Thread(target=run_flask)
     server_thread.start()
 
