@@ -1,10 +1,23 @@
 import os
 import asyncio
+from threading import Thread
+from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import yt_dlp
 
-# التوكن الخاص بك جاهز ومضاف هنا تلقائياً
+# خادم ويب وهمي لإرضاء سيرفرات Render المجانية
+flask_app = Flask('')
+
+@flask_app.route('/')
+def home():
+    return "Bot is alive!"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 8080))
+    flask_app.run(host='0.0.0.0', port=port)
+
+# التوكن الخاص بك مضاف هنا تلقائياً
 TOKEN = "9297995160:AAH2JrVLD2VBN-gDqnyN2KYs1wrp6uLLC_8"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -20,11 +33,10 @@ async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     status_msg = await update.message.reply_text("⏳ جاري معالجة الرابط وتحميل الفيديو، يرجى الانتظار...")
 
-    # إعدادات مكتبة التحميل
     ydl_opts = {
         'format': 'best',
         'outtmpl': 'downloaded_video.%(ext)s',
-        'max_filesize': 50 * 1024 * 1024, # الحد الأقصى 50 ميجابايت لتليجرام
+        'max_filesize': 50 * 1024 * 1024,
         'quiet': True,
         'no_warnings': True
     }
@@ -49,6 +61,9 @@ async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
             os.remove('downloaded_video.mp4')
 
 def main():
+    server_thread = Thread(target=run_flask)
+    server_thread.start()
+
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_and_send))
@@ -58,4 +73,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-  
