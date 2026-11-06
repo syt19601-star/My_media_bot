@@ -59,50 +59,54 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = user_urls[user_id]
     status_msg = await query.message.reply_text("⏳ جاري استخراج الميديا عبر السيرفر السحابي المطور...")
 
-    # استخدام API خارجي قوي جداً ومضاد للحظر لتجهيز روابط التحميل المباشرة
-    api_url = f"https://cobalt.tools"
-    headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "url": url,
-        "isAudioOnly": True if choice == "audio" else False,
-        "aFormat": "mp3" if choice == "audio" else "mp4",
-        "vQuality": "720"
-    }
+    # 🚀 الـ API المباشر والقوي المفتوح للسيرفرات بدون حظر
+    api_url = f"https://allinonerepo.com{url}"
 
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(api_url, json=payload, headers=headers) as response:
-                result = await response.json()
-                
-                if response.status == 200 and "url" in result:
-                    download_url = result["url"]
-                    await status_msg.edit_text("🚀 جاري رفع الملف إلى تليجرام...")
+            async with session.get(api_url) as response:
+                if response.status == 200:
+                    result = await response.json()
                     
-                    # تحميل الملف المؤقت ورفعه لتليجرام مباشرة
-                    async with session.get(download_url) as file_resp:
-                        if file_resp.status == 200:
-                            file_data = await file_resp.read()
-                            filename = f"download_{user_id}.mp3" if choice == "audio" else f"download_{user_id}.mp4"
-                            
-                            with open(filename, "wb") as f:
-                                f.write(file_data)
+                    # البحث عن رابط التحميل المباشر داخل استجابة الـ API
+                    download_url = None
+                    if "links" in result and len(result["links"]) > 0:
+                        for link in result["links"]:
+                            if choice == "audio" and (link.get("type") == "audio" or "mp3" in link.get("quality", "")):
+                                download_url = link["url"]
+                                break
+                            elif choice == "video" and link.get("type") == "video":
+                                download_url = link["url"]
+                                break
+                        
+                        if not download_url:
+                            download_url = result["links"][0]["url"]
+
+                    if download_url:
+                        await status_msg.edit_text("🚀 جاري سحب الملف ورفعه إلى تليجرام...")
+                        
+                        async with session.get(download_url) as file_resp:
+                            if file_resp.status == 200:
+                                file_data = await file_resp.read()
+                                filename = f"download_{user_id}.mp3" if choice == "audio" else f"download_{user_id}.mp4"
                                 
-                            with open(filename, "rb") as file_to_send:
-                                if choice == "audio":
-                                    await query.message.reply_audio(audio=file_to_send, caption="✨ تم تحميل الصوت بنجاح! \n🤖 v1.0")
-                                else:
-                                    await query.message.reply_video(video=file_to_send, caption="✨ تم تحميل الفيديو بنجاح! \n🤖 v1.0")
-                            
-                            os.remove(filename)
-                            await status_msg.delete()
-                            del user_urls[user_id]
-                        else:
-                            raise Exception("Failed to fetch binary")
+                                with open(filename, "wb") as f:
+                                    f.write(file_data)
+                                    
+                                with open(filename, "rb") as file_to_send:
+                                    if choice == "audio":
+                                        await query.message.reply_audio(audio=file_to_send, caption="✨ تم تحميل الصوت بنجاح! \n🤖 v1.0")
+                                    else:
+                                        await query.message.reply_video(video=file_to_send, caption="✨ تم تحميل الفيديو بنجاح! \n🤖 v1.0")
+                                
+                                os.remove(filename)
+                                await status_msg.delete()
+                                del user_urls[user_id]
+                                return
+                                
+                    raise Exception("No downloadable link found")
                 else:
-                    raise Exception("API Error")
+                    raise Exception("API Connection Error")
 
     except Exception as e:
         print(f"Error: {e}")
@@ -119,7 +123,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(button_click))
     
-    print("⚡ البوت الخارق v1.0 يعمل بنظام الـ API المتطور...")
+    print("⚡ البوت يعمل بنظام الـ API المستقر...")
     app.run_polling()
 
 if __name__ == '__main__':
