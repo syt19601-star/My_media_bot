@@ -1,29 +1,56 @@
 import os
 import asyncio
+from threading import Thread
+from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 import yt_dlp
 
+# خادم ويب وهمي لإرضاء سيرفرات Render المجانية وتخطي مشكلة الـ Ports
+flask_app = Flask('')
+
+@flask_app.route('/')
+def home():
+    return "Bot is alive!"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 8080))
+    flask_app.run(host='0.0.0.0', port=port)
+
 TOKEN = "9297995160:AAH2JrVLD2VBN-gDqnyN2KYs1wrp6uLLC_8"
+
+# قاموس لحفظ الروابط مؤقتاً بالذاكرة لتجنب قيود حجم أزرار تليجرام
 user_urls = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 أهلاً بك في بوت تحميل الميديا الخارق v1.0!\n\n"
-        "📥 أرسل أي رابط فيديو من (تيك توك، إنستغرام، يوتيوب، فيسبوك) وسأقوم بتحميله فوراً بالأزرار الذكية مجاناً.\n\n"
+        "👋 أهلاً بك في بوت تحميل الميديا السحابي v1.0!\n\n"
+        "📥 أرسل أي رابط فيديو من (تيك توك، إنستغرام، فيسبوك) وسأقوم بتحميله فوراً بالأزرار الذكية مجاناً.\n\n"
+        "⚠️ تنويه: التحميل من يوتيوب غير مدعوم حالياً في هذه النسخة، وسيتم إضافته في التحديث القادم إن شاء الله.\n\n"
         "💬 للدعم الفني أو الاستفسار، تواصل مع المطور:\n"
         "👉 @ulx717\n\n"
-        "🤖 الإصدار: v1.0"
+        "🤖 الإصدار الحالي: v1.0\n"
+        "⏳ الإصدار القادم الموعود: v2.0 (يدعم يوتيوب)"
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
+    
+    # حظر روابط اليوتيوب مسبقاً وتنبيه المستخدم بذكاء
+    if "youtube.com" in url or "youtu.be" in url:
+        await update.message.reply_text(
+            "❌ عذراً يا غالي، التحميل من اليوتيوب متوقف حالياً في الإصدار v1.0 بسبب قيود الحظر السحابي.\n"
+            "✨ انتظرنا في الإصدار v2.0 قريباً إن شاء الله!"
+        )
+        return
+
     if not url.startswith(("http://", "https://")):
         return
 
     user_id = update.message.from_user.id
     user_urls[user_id] = url
 
+    # إظهار الأزرار الذكية للمستخدم
     keyboard = [
         [
             InlineKeyboardButton("🎬 تحميل الفيديو", callback_data="video"),
@@ -47,7 +74,6 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = user_urls[user_id]
     status_msg = await query.message.reply_text("⏳ جاري معالجة الرابط وتحميل الميديا من السحاب، يرجى الانتظار...")
 
-    # إعدادات ذكية لتغيير هوية المتصفح وتخطي الحظر الجغرافي بالسحاب
     common_opts = {
         'quiet': True,
         'no_warnings': True,
@@ -92,17 +118,21 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         print(f"Error: {e}")
-        await status_msg.edit_text("❌ عذراً، تعذر سحب الفيديو. تأكد من أن الرابط صحيح والحساب عام وحاول مجدداً.")
+        await status_msg.edit_text("❌ عذراً، تعذر سحب الفيديو من السيرفر. تأكد من أن الرابط صحيح والحساب عام وحاول مجدداً.")
         if user_id in user_urls:
             del user_urls[user_id]
 
 def main():
+    # تشغيل خادم الويب في الخلفية من أجل منصة Render المجانية
+    server_thread = Thread(target=run_flask)
+    server_thread.start()
+
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(button_click))
     
-    print("⚡ البوت السحابي المستقر يعمل بنجاح...")
+    print("⚡ البوت السحابي المستقر v1.0 يعمل الآن بنجاح...")
     app.run_polling()
 
 if __name__ == '__main__':
