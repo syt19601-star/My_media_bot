@@ -1,7 +1,6 @@
 import os
 import asyncio
-import subprocess
-import math
+import aiohttp
 from threading import Thread
 from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -18,15 +17,12 @@ def run_flask():
     flask_app.run(host='0.0.0.0', port=port)
 
 TOKEN = "9297995160:AAH2JrVLD2VBN-gDqnyN2KYs1wrp6uLLC_8"
-
-# قاموس لحفظ الروابط مؤقتاً لتجنب كسر قيود حجم أزرار تليجرام
 user_urls = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 أهلاً بك في بوت تحميل الميديا الخارق والمقاوم للحظر!\n\n"
-        "📥 أرسل أي رابط فيديو من (تيك توك، إنستغرام، يوتيوب، فيسبوك) وسأقوم بخدمتك فوراً بالأزرار الذكية.\n"
-        "⚡ يدعم البوت تقطيع الفيديوهات الطويلة تلقائياً لتخطي قيود الحجم!\n\n"
+        "👋 أهلاً بك في بوت تحميل الميديا الخارق v1.0!\n\n"
+        "📥 أرسل أي رابط فيديو من (تيك توك، إنستغرام، يوتيوب، فيسبوك) وسأقوم بتحميله فوراً بالأزرار الذكية مجاناً.\n\n"
         "💬 للدعم الفني أو الاستفسار، تواصل مع المطور:\n"
         "👉 @ulx717\n\n"
         "🤖 الإصدار: v1.0"
@@ -38,20 +34,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user_id = update.message.from_user.id
-    user_urls[user_id] = url # حفظ الرابط بالذاكرة مؤقتاً
+    user_urls[user_id] = url
 
-    # تصميم الأزرار التفاعلية دون وضع الرابط داخل الـ callback لعدم كسر القيد
     keyboard = [
         [
-            InlineKeyboardButton("🎬 فيديو أعلى دقة", callback_data="vid_best"),
-            InlineKeyboardButton("📉 فيديو دقة منخفضة", callback_data="vid_low")
-        ],
-        [
-            InlineKeyboardButton("🎵 صوت فقط (MP3)", callback_data="aud_only")
+            InlineKeyboardButton("🎬 تحميل الفيديو", callback_data="video"),
+            InlineKeyboardButton("🎵 صوت فقط (MP3)", callback_data="audio")
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("⚙️ اختر صيغة ودقة التحميل المطلوبة المنبثقة أدناه:", reply_markup=reply_markup)
+    await update.message.reply_text("⚙️ اختر صيغة التحميل المطلوبة أدناه:", reply_markup=reply_markup)
 
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -65,85 +57,56 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     url = user_urls[user_id]
-    status_msg = await query.message.reply_text("⏳ جاري اختراق الحماية وسحب الميديا من السحاب، يرجى الانتظار...")
-    import yt_dlp
+    status_msg = await query.message.reply_text("⏳ جاري استخراج الميديا عبر السيرفر السحابي المطور...")
 
-    # إعدادات متطورة لتخطي حظر السيرفرات السحابية في Render وتغيير هوية المتصفح
-    common_opts = {
-        'quiet': True,
-        'no_warnings': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'referer': 'https://google.com',
-        'nocheckcertificate': True,
-        'extractor_args': {'youtube': {'player_client': ['android', 'web']}}
+    # استخدام API خارجي قوي جداً ومضاد للحظر لتجهيز روابط التحميل المباشرة
+    api_url = f"https://cobalt.tools"
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "url": url,
+        "isAudioOnly": True if choice == "audio" else False,
+        "aFormat": "mp3" if choice == "audio" else "mp4",
+        "vQuality": "720"
     }
 
-    if choice == "vid_best":
-        ydl_opts = {**common_opts, 'format': 'best', 'outtmpl': f'video_{user_id}.%(ext)s'}
-    elif choice == "vid_low":
-        ydl_opts = {**common_opts, 'format': 'worst', 'outtmpl': f'video_{user_id}.%(ext)s'}
-    elif choice == "aud_only":
-        ydl_opts = {
-            **common_opts,
-            'format': 'bestaudio/best',
-            'outtmpl': f'audio_{user_id}.%(ext)s',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-        }
-
     try:
-        loop = asyncio.get_event_loop()
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=True))
-            filename = ydl.prepare_filename(info)
-            if choice == "aud_only" and not filename.endswith(".mp3"):
-                filename = os.path.splitext(filename)[0] + ".mp3"
-
-        filesize = os.path.getsize(filename)
-
-        # التحقق من حجم الفيديو وبدء ميزة التقطيع التلقائي الذكية
-        if choice != "aud_only" and filesize > 50 * 1024 * 1024:
-            await status_msg.edit_text("✂️ حجم الفيديو أكبر من 50 ميغابايت، جاري تقطيعه تلقائياً...")
-            
-            cmd_dur = f'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nocreepy=1 "{filename}"'
-            duration = float(subprocess.check_output(cmd_dur, shell=True).decode().strip())
-            
-            chunk_size = 300
-            num_chunks = math.ceil(duration / chunk_size)
-            base, ext = os.path.splitext(filename)
-            
-            await status_msg.edit_text(f"🚀 جاري رفع {num_chunks} أجزاء إلى تليجرام بالتتالي...")
-            
-            for i in range(num_chunks):
-                start_time = i * chunk_size
-                chunk_file = f"{base}_part{i+1}{ext}"
-                cmd_split = f'ffmpeg -ss {start_time} -i "{filename}" -t {chunk_size} -c copy "{chunk_file}" -y'
-                subprocess.call(cmd_split, shell=True)
+        async with aiohttp.ClientSession() as session:
+            async with session.post(api_url, json=payload, headers=headers) as response:
+                result = await response.json()
                 
-                if os.path.exists(chunk_file):
-                    with open(chunk_file, 'rb') as vf:
-                        await query.message.reply_video(video=vf, caption=f"✨ الجزء ({i+1} من {num_chunks})")
-                    os.remove(chunk_file)
-            
-            os.remove(filename)
-        else:
-            await status_msg.edit_text("🚀 جاري رفع الملف إلى تليجرام...")
-            with open(filename, 'rb') as file_to_send:
-                if choice == "aud_only":
-                    await query.message.reply_audio(audio=file_to_send, caption="✨ تم تحميل الصوت بنجاح!")
+                if response.status == 200 and "url" in result:
+                    download_url = result["url"]
+                    await status_msg.edit_text("🚀 جاري رفع الملف إلى تليجرام...")
+                    
+                    # تحميل الملف المؤقت ورفعه لتليجرام مباشرة
+                    async with session.get(download_url) as file_resp:
+                        if file_resp.status == 200:
+                            file_data = await file_resp.read()
+                            filename = f"download_{user_id}.mp3" if choice == "audio" else f"download_{user_id}.mp4"
+                            
+                            with open(filename, "wb") as f:
+                                f.write(file_data)
+                                
+                            with open(filename, "rb") as file_to_send:
+                                if choice == "audio":
+                                    await query.message.reply_audio(audio=file_to_send, caption="✨ تم تحميل الصوت بنجاح! \n🤖 v1.0")
+                                else:
+                                    await query.message.reply_video(video=file_to_send, caption="✨ تم تحميل الفيديو بنجاح! \n🤖 v1.0")
+                            
+                            os.remove(filename)
+                            await status_msg.delete()
+                            del user_urls[user_id]
+                        else:
+                            raise Exception("Failed to fetch binary")
                 else:
-                    await query.message.reply_video(video=file_to_send, caption="✨ تم تحميل الفيديو بنجاح!")
-            os.remove(filename)
-
-        del user_urls[user_id]
-        await status_msg.delete()
+                    raise Exception("API Error")
 
     except Exception as e:
         print(f"Error: {e}")
-        await status_msg.edit_text("❌ عذراً، واجه السيرفر حظراً مؤقتاً أو تلفاً بالرابط. يرجى تجربة رابط آخر أو المحاولة لاحقاً.")
+        await status_msg.edit_text("❌ عذراً، تعذر سحب الفيديو. تأكد من أن الفيديو عام وغير محذوف وحاول مجدداً.")
         if user_id in user_urls:
             del user_urls[user_id]
 
@@ -156,7 +119,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(button_click))
     
-    print("⚡ البوت الخارق v1.0 يعمل الآن بنجاح...")
+    print("⚡ البوت الخارق v1.0 يعمل بنظام الـ API المتطور...")
     app.run_polling()
 
 if __name__ == '__main__':
