@@ -73,7 +73,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    # تصحيح قراءة البيانات البرمجية المفصولة بـ |
+    # 👍 تم التصحيح الجذري هنا لقراءة المصفوفة بشكل برمي صحيح
     data = query.data.split('|')
     choice = data[0]
     url = data[1]
