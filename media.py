@@ -1,12 +1,13 @@
 import os
 import asyncio
+import subprocess
+import math
 from threading import Thread
 from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 import yt_dlp
 
-# خادم ويب وهمي لإرضاء سيرفرات Render المجانية
 flask_app = Flask('')
 
 @flask_app.route('/')
@@ -21,9 +22,10 @@ TOKEN = "9297995160:AAH2JrVLD2VBN-gDqnyN2KYs1wrp6uLLC_8"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 أهلاً بك في بوت تحميل الميديا المطور!\n\n"
-        "📥 أرسل لي أي رابط فيديو من (تيك توك، إنستغرام، يوتيوب، فيسبوك) وسأقوم بتحميله بالصيغة والدقة التي تختارها مجاناً.\n\n"
-        "💬 للدعم الفني أو إذا واجهتك أي مشكلة، تواصل مع المطور مباشرة هنا:\n"
+        "👋 أهلاً بك في بوت تحميل الميديا الخارق!\n\n"
+        "📥 أرسل أي رابط فيديو من (تيك توك، إنستغرام، يوتيوب، فيسبوك) وسأقوم بتحميله بالصيغة والدقة المطلوبة.\n"
+        "⚡ يدعم البوت الآن تقطيع الفيديوهات الطويلة تلقائياً لإرسالها بالكامل دون قيود الـ 50 ميغابايت!\n\n"
+        "💬 للدعم الفني أو الاستفسار، تواصل مع المطور:\n"
         "👉 @ulx717"
     )
 
@@ -32,7 +34,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not url.startswith(("http://", "https://")):
         return
 
-    # إنشاء الأزرار التفاعلية للمستخدم
     keyboard = [
         [
             InlineKeyboardButton("🎬 فيديو أعلى دقة", callback_data=f"vid_best|{url}"),
@@ -45,6 +46,31 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("⚙️ اختر صيغة ودقة التحميل المطلوبة المنبثقة أدناه:", reply_markup=reply_markup)
 
+def get_video_duration(filename):
+    try:
+        cmd = f'ffmpeg -i "{filename}" 2>&1 | grep "Duration"'
+        output = subprocess.check_output(cmd, shell=True).decode()
+        time_str = output.split("Duration:")[1].split(",")[0].strip()
+        h, m, s = time_str.split(":")
+        return int(h) * 3600 + int(m) * 60 + float(s)
+    except:
+        return 0
+
+def split_video(filename, duration, chunk_size=300):
+    num_chunks = math.ceil(duration / chunk_size)
+    chunks = []
+    base, ext = os.path.splitext(filename)
+    
+    for i in range(num_chunks):
+        start_time = i * chunk_size
+        output_chunk = f"{base}_part{i+1}{ext}"
+        cmd = f'ffmpeg -ss {start_time} -i "{filename}" -t {chunk_size} -c copy "{output_chunk}" -y'
+        subprocess.call(cmd, shell=True)
+        if os.path.exists(output_chunk):
+            chunks.append(output_chunk)
+            
+    return chunks
+
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -53,18 +79,16 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     choice = data[0]
     url = data[1]
 
-    status_msg = await query.message.reply_text("⏳ جاري معالجة طلبك والتحميل من السيرفر، يرجى الانتظار...")
+    status_msg = await query.message.reply_text("⏳ جاري سحب الميديا ومعالجتها، يرجى الانتظار...")
 
-    # تحديد خيارات التحميل بناءً على زر المستخدم
     if choice == "vid_best":
-        ydl_opts = {'format': 'best', 'outtmpl': 'video_best.%(ext)s', 'max_filesize': 50 * 1024 * 1024}
+        ydl_opts = {'format': 'best', 'outtmpl': 'downloaded_file.%(ext)s'}
     elif choice == "vid_low":
-        ydl_opts = {'format': 'worst', 'outtmpl': 'video_low.%(ext)s', 'max_filesize': 50 * 1024 * 1024}
+        ydl_opts = {'format': 'worst', 'outtmpl': 'downloaded_file.%(ext)s'}
     elif choice == "aud_only":
         ydl_opts = {
             'format': 'bestaudio/best',
-            'outtmpl': 'audio.%(ext)s',
-            'max_filesize': 50 * 1024 * 1024,
+            'outtmpl': 'downloaded_file.%(ext)s',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
@@ -77,24 +101,37 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=True))
             filename = ydl.prepare_filename(info)
-            if choice == "aud_only":
+            if choice == "aud_only" and not filename.endswith(".mp3"):
                 filename = os.path.splitext(filename)[0] + ".mp3"
 
-        await status_msg.edit_text("🚀 جاري رفع الملف إلى تليجرام...")
-        
-        with open(filename, 'rb') as file_to_send:
-            if choice == "aud_only":
-                await query.message.reply_audio(audio=file_to_send, caption="✨ تم تحميل الصوت بنجاح!")
-            else:
-                await query.message.reply_video(video=file_to_send, caption="✨ تم تحميل الفيديو بنجاح!")
+        filesize = os.path.getsize(filename)
 
-        if os.path.exists(filename):
+        if choice != "aud_only" and filesize > 50 * 1024 * 1024:
+            await status_msg.edit_text("✂️ حجم الفيديو أكبر من 50 ميغابايت، جاري تقطيعه إلى أجزاء...")
+            duration = get_video_duration(filename)
+            chunks = split_video(filename, duration)
+            
+            await status_msg.edit_text(f"🚀 جاري رفع {len(chunks)} أجزاء إلى تليجرام بالتتالي...")
+            for idx, chunk in enumerate(chunks):
+                with open(chunk, 'rb') as video_part:
+                    await query.message.reply_video(video=video_part, caption=f"✨ الجزء ({idx+1} من {len(chunks)})")
+                os.remove(chunk)
+            
             os.remove(filename)
+        else:
+            await status_msg.edit_text("🚀 جاري رفع الملف إلى تليجرام...")
+            with open(filename, 'rb') as file_to_send:
+                if choice == "aud_only":
+                    await query.message.reply_audio(audio=file_to_send, caption="✨ تم تحميل الصوت بنجاح!")
+                else:
+                    await query.message.reply_video(video=file_to_send, caption="✨ تم تحميل الفيديو بنجاح!")
+            os.remove(filename)
+
         await status_msg.delete()
 
     except Exception as e:
         print(f"Error: {e}")
-        await status_msg.edit_text("❌ عذراً، تعذر تحميل هذا الملف. تأكد من أن الحساب عام أو أن الحجم لا يتجاوز 50 ميجابايت.")
+        await status_msg.edit_text("❌ عذراً، تعذر معالجة هذا الرابط. تأكد من أن الحساب عام والاتصال مستقر.")
 
 def main():
     server_thread = Thread(target=run_flask)
@@ -105,7 +142,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(button_click))
     
-    print("⚡ البوت المطور يعمل الآن بنجاح...")
+    print("⚡ البوت الخارق يعمل الآن بنجاح...")
     app.run_polling()
 
 if __name__ == '__main__':
