@@ -48,11 +48,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def get_video_duration(filename):
     try:
-        cmd = f'ffmpeg -i "{filename}" 2>&1 | grep "Duration"'
-        output = subprocess.check_output(cmd, shell=True).decode()
-        time_str = output.split("Duration:")[1].split(",")[0].strip()
-        h, m, s = time_str.split(":")
-        return int(h) * 3600 + int(m) * 60 + float(s)
+        cmd = f'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nocreepy=1 "{filename}"'
+        output = subprocess.check_output(cmd, shell=True).decode().strip()
+        return float(output)
     except:
         return 0
 
@@ -75,6 +73,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
+    # تصحيح قراءة البيانات البرمجية المفصولة بـ |
     data = query.data.split('|')
     choice = data[0]
     url = data[1]
