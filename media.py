@@ -23,9 +23,11 @@ TOKEN = "9297995160:AAH2JrVLD2VBN-gDqnyN2KYs1wrp6uLLC_8"
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "👋 أهلاً بك في بوت تحميل الميديا المطور!\n\n"
-        "📥 أرسل لي أي رابط فيديو من (تيك توك، إنستغرام، يوتيوب، فيسبوك) وسأقوم بتحميله وإرساله لك فوراً مجاناً."
+        "📥 أرسل لي أي رابط فيديو من (تيك توك، إنستغرام، يوتيوب، فيسبوك) وسأقوم بتحميله وإرساله لك فوراً مجاناً.\n\n"
+        "💬 للدعم الفني أو إذا واجهتك أي مشكلة، تواصل مع المطور مباشرة هنا:\n"
+        "👉 @ulx717"
     )
-
+    
 async def download_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
     if not url.startswith(("http://", "https://")):
