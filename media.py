@@ -1,20 +1,8 @@
 import os
 import asyncio
-import aiohttp
-from threading import Thread
-from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
-
-flask_app = Flask('')
-
-@flask_app.route('/')
-def home():
-    return "Bot is alive!"
-
-def run_flask():
-    port = int(os.environ.get("PORT", 8080))
-    flask_app.run(host='0.0.0.0', port=port)
+import yt_dlp
 
 TOKEN = "9297995160:AAH2JrVLD2VBN-gDqnyN2KYs1wrp6uLLC_8"
 user_urls = {}
@@ -57,73 +45,64 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     url = user_urls[user_id]
-    status_msg = await query.message.reply_text("⏳ جاري استخراج الميديا عبر السيرفر السحابي المطور...")
+    status_msg = await query.message.reply_text("⏳ جاري معالجة الرابط وتحميل الميديا من السحاب، يرجى الانتظار...")
 
-    # 🚀 الـ API المباشر والقوي المفتوح للسيرفرات بدون حظر
-    api_url = f"https://allinonerepo.com{url}"
+    # إعدادات ذكية لتغيير هوية المتصفح وتخطي الحظر الجغرافي بالسحاب
+    common_opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'referer': 'https://google.com',
+        'nocheckcertificate': True
+    }
+
+    if choice == "video":
+        ydl_opts = {**common_opts, 'format': 'best', 'outtmpl': f'download_{user_id}.%(ext)s'}
+    else:
+        ydl_opts = {
+            **common_opts,
+            'format': 'bestaudio/best',
+            'outtmpl': f'download_{user_id}.%(ext)s',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+        }
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(api_url) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    
-                    # البحث عن رابط التحميل المباشر داخل استجابة الـ API
-                    download_url = None
-                    if "links" in result and len(result["links"]) > 0:
-                        for link in result["links"]:
-                            if choice == "audio" and (link.get("type") == "audio" or "mp3" in link.get("quality", "")):
-                                download_url = link["url"]
-                                break
-                            elif choice == "video" and link.get("type") == "video":
-                                download_url = link["url"]
-                                break
-                        
-                        if not download_url:
-                            download_url = result["links"][0]["url"]
+        loop = asyncio.get_event_loop()
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = await loop.run_in_executor(None, lambda: ydl.extract_info(url, download=True))
+            filename = ydl.prepare_filename(info)
+            if choice == "audio" and not filename.endswith(".mp3"):
+                filename = os.path.splitext(filename)[0] + ".mp3"
 
-                    if download_url:
-                        await status_msg.edit_text("🚀 جاري سحب الملف ورفعه إلى تليجرام...")
-                        
-                        async with session.get(download_url) as file_resp:
-                            if file_resp.status == 200:
-                                file_data = await file_resp.read()
-                                filename = f"download_{user_id}.mp3" if choice == "audio" else f"download_{user_id}.mp4"
-                                
-                                with open(filename, "wb") as f:
-                                    f.write(file_data)
-                                    
-                                with open(filename, "rb") as file_to_send:
-                                    if choice == "audio":
-                                        await query.message.reply_audio(audio=file_to_send, caption="✨ تم تحميل الصوت بنجاح! \n🤖 v1.0")
-                                    else:
-                                        await query.message.reply_video(video=file_to_send, caption="✨ تم تحميل الفيديو بنجاح! \n🤖 v1.0")
-                                
-                                os.remove(filename)
-                                await status_msg.delete()
-                                del user_urls[user_id]
-                                return
-                                
-                    raise Exception("No downloadable link found")
-                else:
-                    raise Exception("API Connection Error")
+        await status_msg.edit_text("🚀 جاري رفع الملف إلى تليجرام...")
+        with open(filename, "rb") as file_to_send:
+            if choice == "audio":
+                await query.message.reply_audio(audio=file_to_send, caption="✨ تم تحميل الصوت بنجاح! \n🤖 v1.0")
+            else:
+                await query.message.reply_video(video=file_to_send, caption="✨ تم تحميل الفيديو بنجاح! \n🤖 v1.0")
+        
+        if os.path.exists(filename):
+            os.remove(filename)
+        await status_msg.delete()
+        del user_urls[user_id]
 
     except Exception as e:
         print(f"Error: {e}")
-        await status_msg.edit_text("❌ عذراً، تعذر سحب الفيديو. تأكد من أن الفيديو عام وغير محذوف وحاول مجدداً.")
+        await status_msg.edit_text("❌ عذراً، تعذر سحب الفيديو. تأكد من أن الرابط صحيح والحساب عام وحاول مجدداً.")
         if user_id in user_urls:
             del user_urls[user_id]
 
 def main():
-    server_thread = Thread(target=run_flask)
-    server_thread.start()
-
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(button_click))
     
-    print("⚡ البوت يعمل بنظام الـ API المستقر...")
+    print("⚡ البوت السحابي المستقر يعمل بنجاح...")
     app.run_polling()
 
 if __name__ == '__main__':
