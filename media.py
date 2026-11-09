@@ -24,15 +24,14 @@ user_urls = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 أهلاً بك في بوت تحميل الميديا السحابي v2.1!\n\n"
+        "👋 أهلاً بك في بوت تحميل الميديا السحابي v2.2!\n\n"
         "📥 أرسل أي رابط فيديو من:\n"
-        "• 🎥 **يوتيوب والفيديوهات القصيرة Shorts**\n"
-        "• 🎵 **تيك توك** (بدون حقوق)\n"
+        "• 🎥 **يوتيوب / Shorts**\n"
+        "• 🎵 **تيك توك**\n"
         "• 📸 **إنستغرام وفيس بوك**\n\n"
         "وسأقوم بتحميله فوراً بالأزرار الذكية مجاناً 🚀\n\n"
         "💬 للدعم الفني أو الاستفسار، تواصل مع المطور:\n"
-        "👉 @ulx717\n\n"
-        "🤖 الإصدار الحالي: v2.1 المحدث والمتطور"
+        "👉 @ulx717"
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -44,7 +43,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     user_urls[user_id] = url
 
-    # إظهار الأزرار الذكية للمستخدم
     keyboard = [
         [
             InlineKeyboardButton("🎬 تحميل الفيديو", callback_data="video"),
@@ -68,22 +66,18 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = user_urls[user_id]
     status_msg = await query.message.reply_text("⏳ جاري معالجة الرابط وسحب الميديا من السحاب، يرجى الانتظار...")
 
-    # الخيارات المحدثة لتجاوز حظر يوتيوب والـ Shorts وتيك توك
+    # خيارات مبسطة وآمنة تماماً لتجنب حظر السيرفرات
     common_opts = {
         'quiet': True,
         'no_warnings': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'referer': 'https://www.youtube.com',
         'nocheckcertificate': True,
         'geo_bypass': True,
-        'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web']}},
-        'socket_timeout': 30,
     }
 
     if choice == "video":
         ydl_opts = {
             **common_opts, 
-            'format': 'best[ext=mp4]/best', 
+            'format': 'best', 
             'outtmpl': f'download_{user_id}.%(ext)s'
         }
     else:
@@ -110,7 +104,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if os.path.exists(filename):
             file_size_mb = os.path.getsize(filename) / (1024 * 1024)
             if file_size_mb > 48:
-                await status_msg.edit_text("❌ عذراً، حجم الفيديو كبير جداً (أكبر من 50 ميجابايت)، ولا تستطيع سيرفرات تليجرام رفعه.")
+                await status_msg.execute if hasattr(status_msg, 'execute') else status_msg.edit_text("❌ حجم الملف أكبر من 50 ميجابايت ولا يمكن تليجرام رفعه.")
                 os.remove(filename)
                 del user_urls[user_id]
                 return
@@ -118,15 +112,15 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await status_msg.edit_text("🚀 جاري رفع الملف إلى تليجرام...")
         with open(filename, "rb") as file_to_send:
             if choice == "audio":
-                await query.message.reply_audio(audio=file_to_send, caption="✨ تم تحميل الصوت بنجاح! \n🤖 v2.1")
+                await query.message.reply_audio(audio=file_to_send, caption="✨ تم تحميل الصوت بنجاح! \n🤖 v2.2")
             else:
-                await query.message.reply_video(video=file_to_send, caption="✨ تم تحميل الفيديو بنجاح! \n🤖 v2.1")
+                await query.message.reply_video(video=file_to_send, caption="✨ تم تحميل الفيديو بنجاح! \n🤖 v2.2")
         
         await status_msg.delete()
 
     except Exception as e:
         print(f"Error: {e}")
-        await status_msg.edit_text("❌ عذراً، تعذر سحب الفيديو من الرابط. تأكد من أن الرابط صحيح وعام وحاول مجدداً.")
+        await status_msg.edit_text("❌ عذراً، تعذر سحب الفيديو. يجدر الإشارة إلى أن بعض روابط Shorts تحظرها السيرفرات السحابية مؤقتاً، جرب رابط فيديو عادي أو تيك توك وسيعمل فوراً.")
     
     finally:
         if filename and os.path.exists(filename):
@@ -146,7 +140,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(button_click))
     
-    print("⚡ البوت السحابي الشامل v2.1 يعمل الآن بنجاح...")
+    print("⚡ البوت السحابي الشامل v2.2 يعمل الآن بنجاح...")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
