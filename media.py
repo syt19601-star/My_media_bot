@@ -80,8 +80,6 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
     }
 
-
-
     if choice == "video":
         # اختيار أفضل جودة فيديو مدمجة مع الصوت لتجنب مشاكل دمج ffmpeg المعقدة على ريندر
         ydl_opts = {
