@@ -19,31 +19,25 @@ def run_flask():
 
 TOKEN = "9297995160:AAH2JrVLD2VBN-gDqnyN2KYs1wrp6uLLC_8"
 
-# قاموس لحفظ الروابط مؤقتاً بالذاكرة لتجنب قيود حجم أزرار تليجرام
+# قاموس لحفظ الروابط مؤقتاً بالذاكرة
 user_urls = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 أهلاً بك في بوت تحميل الميديا السحابي v1.0!\n\n"
-        "📥 أرسل أي رابط فيديو من (تيك توك، إنستغرام، فيسبوك) وسأقوم بتحميله فوراً بالأزرار الذكية مجاناً.\n\n"
-        "⚠️ تنويه: التحميل من يوتيوب غير مدعوم حالياً في هذه النسخة، وسيتم إضافته في التحديث القادم إن شاء الله.\n\n"
+        "👋 أهلاً بك في بوت تحميل الميديا السحابي v2.0!\n\n"
+        "📥 أرسل أي رابط فيديو من:\n"
+        "• 🎥 **يوتيوب** (فيديو وصوت)\n"
+        "• 🎵 **تيك توك** (بدون حقوق)\n"
+        "• 📸 **إنستغرام وفيس بوك**\n\n"
+        "وسأقوم بتحميله فوراً بالأزرار الذكية مجاناً 🚀\n\n"
         "💬 للدعم الفني أو الاستفسار، تواصل مع المطور:\n"
         "👉 @ulx717\n\n"
-        "🤖 الإصدار الحالي: v1.0\n"
-        "⏳ الإصدار القادم الموعود: v2.0 (يدعم يوتيوب)"
+        "🤖 الإصدار الحالي: v2.0 الشامل"
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
     
-    # حظر روابط اليوتيوب مسبقاً وتنبيه المستخدم بذكاء
-    if "youtube.com" in url or "youtu.be" in url:
-        await update.message.reply_text(
-            "❌ عذراً يا غالي، التحميل من اليوتيوب متوقف حالياً في الإصدار v1.0 بسبب قيود الحظر السحابي.\n"
-            "✨ انتظرنا في الإصدار v2.0 قريباً إن شاء الله!"
-        )
-        return
-
     if not url.startswith(("http://", "https://")):
         return
 
@@ -58,7 +52,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("⚙️ اختر صيغة التحميل المطلوبة أدناه:", reply_markup=reply_markup)
+    await update.message.reply_text("⚙️ تمรับ الرابط بنجاح! اختر صيغة التحميل المطلوبة أدناه:", reply_markup=reply_markup)
 
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -72,18 +66,25 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     url = user_urls[user_id]
-    status_msg = await query.message.reply_text("⏳ جاري معالجة الرابط وتحميل الميديا من السحاب، يرجى الانتظار...")
+    status_msg = await query.message.reply_text("⏳ جاري معالجة الرابط وسحب الميديا من السحاب، يرجى الانتظار...")
 
+    # خيارات محسنة لـ yt_dlp لدعم يوتيوب وتيك توك وتجاوز الحظر
     common_opts = {
         'quiet': True,
         'no_warnings': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'referer': 'https://google.com',
-        'nocheckcertificate': True
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'referer': 'https://www.google.com',
+        'nocheckcertificate': True,
+        'geo_bypass': True,
     }
 
     if choice == "video":
-        ydl_opts = {**common_opts, 'format': 'best', 'outtmpl': f'download_{user_id}.%(ext)s'}
+        # اختيار أفضل جودة فيديو مدمجة مع الصوت لتجنب مشاكل دمج ffmpeg المعقدة على ريندر
+        ydl_opts = {
+            **common_opts, 
+            'format': 'best[ext=mp4]/best', 
+            'outtmpl': f'download_{user_id}.%(ext)s'
+        }
     else:
         ydl_opts = {
             **common_opts,
@@ -96,6 +97,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             }],
         }
 
+    filename = None
     try:
         loop = asyncio.get_event_loop()
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -104,26 +106,39 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if choice == "audio" and not filename.endswith(".mp3"):
                 filename = os.path.splitext(filename)[0] + ".mp3"
 
+        # التحقق من حجم الملف (تليجرام يرفض رفع ملفات أكبر من 50 ميجابايت للبوتات المجانية غالباً)
+        if os.path.exists(filename):
+            file_size_mb = os.path.getsize(filename) / (1024 * 1024)
+            if file_size_mb > 48:
+                await status_msg.edit_text("❌ عذراً، حجم الفيديو كبير جداً (أكبر من 50 ميجابايت)، ولا تستطيع سيرفرات تليجرام رفعه.")
+                os.remove(filename)
+                del user_urls[user_id]
+                return
+
         await status_msg.edit_text("🚀 جاري رفع الملف إلى تليجرام...")
         with open(filename, "rb") as file_to_send:
             if choice == "audio":
-                await query.message.reply_audio(audio=file_to_send, caption="✨ تم تحميل الصوت بنجاح! \n🤖 v1.0")
+                await query.message.reply_audio(audio=file_to_send, caption="✨ تم تحميل الصوت بنجاح! \n🤖 v2.0")
             else:
-                await query.message.reply_video(video=file_to_send, caption="✨ تم تحميل الفيديو بنجاح! \n🤖 v1.0")
+                await query.message.reply_video(video=file_to_send, caption="✨ تم تحميل الفيديو بنجاح! \n🤖 v2.0")
         
-        if os.path.exists(filename):
-            os.remove(filename)
         await status_msg.delete()
-        del user_urls[user_id]
 
     except Exception as e:
         print(f"Error: {e}")
-        await status_msg.edit_text("❌ عذراً، تعذر سحب الفيديو من السيرفر. تأكد من أن الرابط صحيح والحساب عام وحاول مجدداً.")
+        await status_msg.edit_text("❌ عذراً، تعذر سحب الفيديو من الرابط. تأكد من أن الرابط صحيح وعام وحاول مجدداً.")
+    
+    finally:
+        # التنظيف التلقائي للملفات والذاكرة
+        if filename and os.path.exists(filename):
+            try:
+                os.remove(filename)
+            except:
+                pass
         if user_id in user_urls:
             del user_urls[user_id]
 
 def main():
-    # تشغيل خادم الويب في الخلفية من أجل منصة Render المجانية
     server_thread = Thread(target=run_flask)
     server_thread.start()
 
@@ -132,7 +147,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(button_click))
     
-    print("⚡ البوت السحابي المستقر v1.0 يعمل الآن بنجاح...")
+    print("⚡ البوت السحابي الشامل v2.0 يعمل الآن بنجاح...")
     app.run_polling()
 
 if __name__ == '__main__':
