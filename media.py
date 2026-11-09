@@ -69,14 +69,18 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     status_msg = await query.message.reply_text("⏳ جاري معالجة الرابط وسحب الميديا من السحاب، يرجى الانتظار...")
 
     # خيارات محسنة لـ yt_dlp لدعم يوتيوب وتيك توك وتجاوز الحظر
-    common_opts = {
+        common_opts = {
         'quiet': True,
         'no_warnings': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-        'referer': 'https://www.google.com',
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        'referer': 'https://www.youtube.com',
         'nocheckcertificate': True,
         'geo_bypass': True,
+        # إضافة خيارات مساعدة لتجاوز قيود يوتيوب
+        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
     }
+
+
 
     if choice == "video":
         # اختيار أفضل جودة فيديو مدمجة مع الصوت لتجنب مشاكل دمج ffmpeg المعقدة على ريندر
