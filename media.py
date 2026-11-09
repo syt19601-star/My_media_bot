@@ -145,7 +145,8 @@ def main():
     app.add_handler(CallbackQueryHandler(button_click))
     
     print("⚡ البوت السحابي الشامل v2.1 يعمل الآن بنجاح...")
-    app.run_polling()
+    # استخدام drop_pending_updates لتفريغ الرسائل القديمة وضمان استجابة البوت فوراً
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
     main()
