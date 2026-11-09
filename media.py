@@ -68,14 +68,16 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = user_urls[user_id]
     status_msg = await query.message.reply_text("⏳ جاري معالجة الرابط وسحب الميديا من السحاب، يرجى الانتظار...")
 
+    # الخيارات المحدثة لتجاوز حظر يوتيوب وتيك توك
     common_opts = {
         'quiet': True,
         'no_warnings': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'referer': 'https://www.youtube.com',
         'nocheckcertificate': True,
         'geo_bypass': True,
         'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+        'socket_timeout': 30,
     }
 
     if choice == "video":
@@ -145,7 +147,6 @@ def main():
     app.add_handler(CallbackQueryHandler(button_click))
     
     print("⚡ البوت السحابي الشامل v2.1 يعمل الآن بنجاح...")
-    # استخدام drop_pending_updates لتفريغ الرسائل القديمة وضمان استجابة البوت فوراً
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
